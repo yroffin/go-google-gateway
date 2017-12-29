@@ -23,13 +23,15 @@
 package apis
 
 import (
+	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
+	"sync"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	core_apis "github.com/yroffin/go-boot-sqllite/core/apis"
 	core_bean "github.com/yroffin/go-boot-sqllite/core/bean"
-	core_models "github.com/yroffin/go-boot-sqllite/core/models"
-	proxy_models "github.com/yroffin/go-google-gateway/models"
 )
 
 // Proxy internal members
@@ -38,10 +40,10 @@ type Proxy struct {
 	*core_apis.API
 	// internal members
 	Name string
+	// Mqtt
+	client mqtt.Client
 	// mounts
-	crud    string `path:"/api/proxies"`
-	execute string `path:"/api/execute" handler:"ExecuteProxy" method:"GET" mime-type:""`
-	ssl     string `path:"/api/version" handler:"GetVersion" method:"GET" mime-type:""`
+	post string `path:"/api/assistant" handler:"ExecuteProxy" method:"POST" mime-type:""`
 }
 
 // IProxy implements IBean
@@ -51,25 +53,6 @@ type IProxy interface {
 
 // PostConstruct this API
 func (p *Proxy) Init() error {
-	// Crud
-	p.HandlerGetAll = func() (string, error) {
-		return p.GenericGetAll(&proxy_models.ProxyBean{}, core_models.IPersistents(&proxy_models.ProxyBeans{Collection: make([]core_models.IPersistent, 0)}))
-	}
-	p.HandlerGetByID = func(id string) (string, error) {
-		return p.GenericGetByID(id, &proxy_models.ProxyBean{})
-	}
-	p.HandlerPost = func(body string) (string, error) {
-		return p.GenericPost(body, &proxy_models.ProxyBean{})
-	}
-	p.HandlerPutByID = func(id string, body string) (string, error) {
-		return p.GenericPutByID(id, body, &proxy_models.ProxyBean{})
-	}
-	p.HandlerDeleteByID = func(id string) (string, error) {
-		return p.GenericDeleteByID(id, &proxy_models.ProxyBean{})
-	}
-	p.HandlerPatchByID = func(id string, body string) (string, error) {
-		return p.GenericPatchByID(id, body, &proxy_models.ProxyBean{})
-	}
 	return p.API.Init()
 }
 
@@ -82,29 +65,61 @@ func (p *Proxy) PostConstruct(name string) error {
 
 // Validate this API
 func (p *Proxy) Validate(name string) error {
+	// options
+	opts := mqtt.NewClientOptions().AddBroker("tcp://192.168.1.111:1883")
+	opts.SetClientID("GoogleHome")
+
+	// client
+	p.client = mqtt.NewClient(opts)
+	if token := p.client.Connect(); token.Wait() && token.Error() != nil {
+		log.Fatal(token.Error())
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	const TOPIC = "testtopic/test"
+	if token := p.client.Subscribe(TOPIC, 0, func(client mqtt.Client, msg mqtt.Message) {
+		if string(msg.Payload()) != "mymessage" {
+			log.Fatalf("want mymessage, got %s", msg.Payload())
+		}
+		wg.Done()
+	}); token.Wait() && token.Error() != nil {
+		log.Fatal(token.Error())
+	}
+
+	if token := p.client.Publish(TOPIC, 0, false, "mymessage"); token.Wait() && token.Error() != nil {
+		log.Fatal(token.Error())
+	}
+	wg.Wait()
+	log.Printf("MQTT is ok")
 	return nil
+}
+
+// SendMessage send MQTT message
+func (p *Proxy) SendMessage(topic string, message string) {
+	if token := p.client.Publish(topic, 0, false, message); token.Wait() && token.Error() != nil {
+		log.Print(token.Error())
+	}
 }
 
 // ExecuteProxy render ExecuteProxy
 func (p *Proxy) ExecuteProxy() func(w http.ResponseWriter, r *http.Request) {
 	anonymous := func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Request Url %v", r.URL)
-		log.Printf("Request Headers %v", r.Header)
-		log.Printf("Request Encoding %v", r.TransferEncoding)
-		log.Printf("Request IP %v", r.RemoteAddr)
-		w.Header().Set("Content-type", "text/plain")
-		w.WriteHeader(200)
-		w.Write([]byte("Message de test"))
-	}
-	return anonymous
-}
-
-// GetVersion get gateway version
-func (p *Proxy) GetVersion() func(w http.ResponseWriter, r *http.Request) {
-	anonymous := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-type", "application/json")
-		w.WriteHeader(200)
-		w.Write([]byte("{\"version\":\"v1.0\"}"))
+		var headers = r.Header["X-Api-Google"]
+		if len(headers) > 0 && headers[0] == "YES" {
+			log.Printf("Request IP %v with good header", r.RemoteAddr)
+			body, _ := ioutil.ReadAll(r.Body)
+			var strBody = string(body)
+			if strings.Contains(strBody, "yroffin-dialogflow") {
+				p.SendMessage("/assistant", strBody)
+			}
+			w.Header().Set("Content-type", "text/plain")
+			w.WriteHeader(200)
+			w.Write(body)
+		} else {
+			log.Printf("Request IP %v", r.RemoteAddr)
+			w.WriteHeader(400)
+		}
 	}
 	return anonymous
 }
