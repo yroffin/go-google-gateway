@@ -30,6 +30,7 @@ install:
   - ls -lrt
   - dep ensure
   - find vendor
+  - cat `find * -name 'manager.go'`
   # Build
   - cd $TRAVIS_BUILD_DIR
   - ls -lrt
