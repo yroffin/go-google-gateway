@@ -40,9 +40,9 @@ deploy:
   overwrite: true
   api_key: "$GITHUB_OAUTH2_KEY"
   file:
-  - "${GOPATH}/jarvis-rest-module-0.0.1-SNAPSHOT.armel"
-  - "${GOPATH}/jarvis-rest-module-0.0.1-SNAPSHOT.armhf"
-  - "${TRAVIS_BUILD_DIR}/script/jarvis-go-service"
+  - "${GOPATH}/go-google-gateway-0.0.1-SNAPSHOT.armel"
+  - "${GOPATH}/go-google-gateway-0.0.1-SNAPSHOT.armhf"
+  - "${TRAVIS_BUILD_DIR}/script/go-google-gateway-service"
   skip_cleanup: true
   on:
     tags: true
