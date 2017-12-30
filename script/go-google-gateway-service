@@ -1,0 +1,159 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:          go-google-gateway
+# Required-Start:    $network $remote_fs $syslog networking
+# X-Start-After:     $network
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: initscript for go-google-gateway
+### END INIT INFO
+
+# Author: Yannick Roffin
+# Thanks to script author: Leonid Shevtsov <leonid@shevtsov.me>
+# Cf. https://leonid.shevtsov.me/post/how-to-make-a-java-daemon-with-start-stop-daemon
+
+# Do NOT "set -e"
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="go-google-gateway"
+NAME="go-google-gateway"
+CWD=/home/google
+USER=root
+GROUP=google
+PIDFILE=/var/run/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+
+# header control
+intent_header=`cat /etc/go-google-gateway/intent-header`
+intent_header_value=`cat /etc/go-google-gateway/intent-header-value`
+
+EXECUTABLE_COMMAND=/home/google/go-google-gateway-0.0.1-SNAPSHOT.arm
+EXECUTABLE_ARGS="`echo start \
+ --intent-header ${intent_header} \
+ --intent-header-value ${intent_header_value}`"
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Define LSB log_* functions.
+# Depend on lsb-base (>= 3.2-14) to ensure that this file is present
+# and status_of_proc is working.
+. /lib/lsb/init-functions
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+  # Return
+  #   0 if daemon has been started
+  #   1 if daemon was already running
+  #   2 if daemon could not be started
+  start-stop-daemon --start \
+    --quiet \
+    --pidfile $PIDFILE \
+    --user $USER \
+    --exec $EXECUTABLE_COMMAND \
+    --test > /dev/null \
+    || return 1
+  # FIXME: export environment variables here
+  start-stop-daemon --start \
+    --quiet \
+    --make-pidfile \
+    --pidfile $PIDFILE \
+    --chuid $USER \
+    --user $USER \
+    --group $GROUP \
+    --chdir $CWD \
+    --background \
+    --exec $EXECUTABLE_COMMAND \
+    -- $EXECUTABLE_ARGS \
+    || return 2
+}
+
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+  # Return
+  #   0 if daemon has been stopped
+  #   1 if daemon was already stopped
+  #   2 if daemon could not be stopped
+  #   other if a failure occurred
+  start-stop-daemon --stop \
+    --quiet \
+    --user $USER \
+    --pidfile $PIDFILE \
+    --exec $EXECUTABLE_COMMAND \
+    --retry=TERM/30/KILL/5
+  RETVAL="$?"
+  [ "$RETVAL" = 2 ] && return 2
+  rm -f $PIDFILE
+  return "$RETVAL"
+}
+
+#
+# Function that checks if the daemon is running
+#
+do_status()
+{
+  start-stop-daemon \
+    --start \
+    --test \
+    --oknodo \
+    --pidfile $PIDFILE \
+    --user $USER \
+    --exec $EXECUTABLE_COMMAND
+}
+
+VERBOSE=yes
+
+case "$1" in
+  start)
+  [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC" "$NAME"
+  do_start
+  case "$?" in
+    0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+    2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+  esac
+  ;;
+  
+  stop)
+  [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
+  do_stop
+  case "$?" in
+    0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+    2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+  esac
+  ;;
+
+  status)
+  do_status
+  ;;
+
+  restart|force-reload)
+
+  log_daemon_msg "Restarting $DESC" "$NAME"
+  do_stop
+  case "$?" in
+    0|1)
+    do_start
+    case "$?" in
+      0) log_end_msg 0 ;;
+      1) log_end_msg 1 ;; # Old process is still running
+      *) log_end_msg 1 ;; # Failed to start
+    esac
+    ;;
+    *)
+    # Failed to stop
+    log_end_msg 1
+    ;;
+  esac
+  ;;
+  *)
+  echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+  exit 3
+  ;;
+esac
