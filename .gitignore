@@ -19,3 +19,4 @@ gin-bin
 *.key
 go-google-gateway
 .ssl
+*.lock
