@@ -33,7 +33,6 @@ import (
 	core_bean "github.com/yroffin/go-boot-sqllite/core/bean"
 	core_business "github.com/yroffin/go-boot-sqllite/core/business"
 	core_manager "github.com/yroffin/go-boot-sqllite/core/manager"
-	core_stores "github.com/yroffin/go-boot-sqllite/core/stores"
 	proxy_apis "github.com/yroffin/go-google-gateway/apis"
 )
 
@@ -45,12 +44,11 @@ func main() {
 	// Core beans
 	m.Register("router", &core_apis.Router{Bean: &core_bean.Bean{}})
 	m.Register("crud-business", &core_business.CrudBusiness{Bean: &core_bean.Bean{}})
-	m.Register("store-manager", &core_stores.Store{Bean: &core_bean.Bean{}, Tables: []string{"Slide"}, DbPath: "./database.db"})
 	// API beans
 	m.Register("proxy", &proxy_apis.Proxy{API: &core_apis.API{Bean: &core_bean.Bean{}}})
 	m.Boot()
 	// Declarre listener
-	m.HTTP(8081)
+	m.HTTP(8080)
 	m.HTTPS(8443)
 	m.Wait()
 }
