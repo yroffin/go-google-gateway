@@ -7,7 +7,7 @@ go:
   - 1.6
 before_install:
   # Install the arm32 cross-compiler
-  - sudo apt-add-repository 'deb http://archive.ubuntu.com/ubuntu zesty main'
+  - sudo apt-add-repository 'deb http://archive.ubuntu.com/ubuntu thrusty main'
   - sudo apt-get update -qq
   - sudo apt-get install -qq -y gcc-arm-linux-gnueabi
   - arm-linux-gnueabi-gcc --version
