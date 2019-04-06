@@ -22,7 +22,7 @@ before_install:
   - chmod 755 ${RAKE}
 install:
   # Module build
-  - source /home/travis/.gimme/envs/go1.9.env
+  - source /home/travis/.gimme/envs/go1.12.env
   - which go
   - go version
   # Module dependency
