@@ -14,7 +14,7 @@ before_install:
   - sudo apt-get install -qq -y gcc-arm-linux-gnueabihf
   - arm-linux-gnueabihf-gcc --version
   # Install golang
-  - gimme 1.6
+  - gimme 1.12
   # Correct rake bug
   - RAKE=`which rake`
   - mv `which rake` `which rake`.old
