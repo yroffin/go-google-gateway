@@ -20,3 +20,4 @@ gin-bin
 go-google-gateway
 .ssl
 *.lock
+*.log

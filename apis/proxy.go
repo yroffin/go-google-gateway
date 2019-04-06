@@ -24,28 +24,30 @@ package apis
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"strings"
 	"sync"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	core_apis "github.com/yroffin/go-boot-sqllite/core/apis"
-	core_bean "github.com/yroffin/go-boot-sqllite/core/bean"
+	"github.com/yroffin/go-boot-sqllite/core/engine"
+	"github.com/yroffin/go-boot-sqllite/core/winter"
 )
+
+func init() {
+	winter.Helper.Register("ProxyBean", (&Proxy{}).New())
+}
 
 // Proxy internal members
 type Proxy struct {
 	// Base component
-	*core_apis.API
+	*engine.API
 	// internal members
 	Name string
 	// Mqtt
 	client mqtt.Client
-	// mounts
-	post  string `path:"/api/assistant" handler:"ExecuteProxy" method:"POST" mime-type:""`
-	token string `path:"/api/token" handler:"Token" method:"POST" mime-type:""`
+	// Swagger with injection mecanism
+	Swagger engine.ISwaggerService `@autowired:"swagger"`
+	// Api
+	post interface{} `@handler:"ExecuteProxy" path:"/api/assistant" method:"POST" mime-type:"/application/json"`
 	// Intent header control
 	intentHeader *string
 	// Value of header control
@@ -54,7 +56,13 @@ type Proxy struct {
 
 // IProxy implements IBean
 type IProxy interface {
-	core_bean.IBean
+	engine.IAPI
+}
+
+// New constructor
+func (p *Proxy) New() IProxy {
+	bean := Proxy{API: &engine.API{Bean: &winter.Bean{}}}
+	return &bean
 }
 
 // Init this API
@@ -65,7 +73,7 @@ func (p *Proxy) Init() error {
 // PostConstruct this API
 func (p *Proxy) PostConstruct(name string) error {
 	// Scan struct and init all handler
-	p.ScanHandler(p)
+	p.ScanHandler(p.Swagger, p)
 	// scan flags
 	p.intentHeader = flag.String("intent-header", "DEFINE-IT", "Intent header control")
 	p.intentHeaderValue = flag.String("intent-header-value", "DEFINE-IT", "Intent header control value")
@@ -113,33 +121,13 @@ func (p *Proxy) SendMessage(topic string, message string) {
 	}
 }
 
-// Token validate token
-func (p *Proxy) Token() func(w http.ResponseWriter, r *http.Request) {
-	anonymous := func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Request TOKEN HEADERS %v", r.Header)
-	}
-	return anonymous
-}
-
 // ExecuteProxy render ExecuteProxy
-func (p *Proxy) ExecuteProxy() func(w http.ResponseWriter, r *http.Request) {
-	anonymous := func(w http.ResponseWriter, r *http.Request) {
-		var headers = r.Header[*p.intentHeader]
-		if len(headers) > 0 && headers[0] == *p.intentHeaderValue {
-			log.Printf("Request IP %v with good header", r.RemoteAddr)
-			log.Printf("Request HEADERS %v", r.Header)
-			body, _ := ioutil.ReadAll(r.Body)
-			var strBody = string(body)
-			if strings.Contains(strBody, "yroffin-dialogflow") {
-				p.SendMessage("/assistant", strBody)
-			}
-			w.Header().Set("Content-type", "text/plain")
-			w.WriteHeader(200)
-			w.Write(body)
-		} else {
-			log.Printf("Request IP %v", r.RemoteAddr)
-			w.WriteHeader(400)
-		}
+func (p *Proxy) ExecuteProxy() func(engine.IHttpContext) {
+	anonymous := func(c engine.IHttpContext) {
+		c.Header("Content-type", "application/json")
+		var data, _ = c.GetRawData()
+		p.SendMessage("/assistant", string(data))
+		c.String(200, string(data))
 	}
 	return anonymous
 }

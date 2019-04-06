@@ -1,3 +1,4 @@
+// Package models for all models
 // MIT License
 //
 // Copyright (c) 2017 yroffin
@@ -19,29 +20,46 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-package main
+package auto
 
 import (
-	"github.com/gobuffalo/packr"
+	"flag"
+	"io"
+	"os"
+
 	log "github.com/sirupsen/logrus"
+	"github.com/yroffin/go-boot-sqllite/core/engine"
 	"github.com/yroffin/go-boot-sqllite/core/winter"
-	_ "github.com/yroffin/go-google-gateway/apis"
-	"github.com/yroffin/go-google-gateway/auto"
 )
 
-// PackInstance packer singleton
-func PackInstance() winter.PackManager {
-	auto.Pack = packr.NewBox("./dist")
-	for _, res := range auto.Pack.List() {
-		log.WithFields(log.Fields{
-			"file": res,
-		}).Info("Pack")
+// Pack for acess to packr
+var Pack winter.PackManager
+
+func init() {
+	// Log as JSON instead of the default ASCII formatter.
+	log.SetFormatter(&log.TextFormatter{})
+
+	// Output to stdout instead of the default stderr
+	// Can be any io.Writer, see below for File example
+	log.SetOutput(os.Stdout)
+
+	// Only log the warning severity or above.
+	log.SetLevel(log.DebugLevel)
+
+	// Output to file
+	file, err := os.OpenFile("jarvis.log", os.O_CREATE|os.O_WRONLY, 0666)
+	if err == nil {
+		var writers io.Writer
+		writers = io.MultiWriter(os.Stderr, file)
+		log.SetOutput(writers)
+	} else {
+		log.Info("Failed to log to file, using default stderr")
 	}
-	return auto.Pack
 }
 
-// Rest()
-func main() {
-	// Boot
-	winter.Helper.Boot(PackInstance(), "jarvis-ui/index.html")
+func init() {
+	winter.Helper.Init()
+	// Command Line
+	flag.String("intent", "", "Intent header")
+	winter.Helper.GetBean("APIManager").(engine.IAPIManager).CommandLine()
 }
